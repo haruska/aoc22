@@ -1,3 +1,5 @@
+use itertools::{max, sorted};
+
 fn parse(input: &str) -> Vec<usize> {
     input
         .split("\n\n")
@@ -9,20 +11,21 @@ fn parse(input: &str) -> Vec<usize> {
 }
 
 fn top_elf(elves: &[usize]) -> usize {
-    elves.iter().max().copied().unwrap_or(0)
+    max(elves).copied().unwrap_or(0)
 }
 
-fn top_elves(mut elves: Vec<usize>, count: usize) -> usize {
-    elves.sort();
-    let top = &elves[elves.len() - count..];
-    top.iter().sum()
+fn top_elves(elves: &[usize], count: usize) -> usize {
+    let skip_len = elves.len() - count;
+    sorted(elves).skip(skip_len).sum()
 }
 
 fn main() {
     let input = include_str!("../input/day01.txt");
-    let elves = parse(input);
 
-    let top_elf = top_elf(elves.as_slice());
+    let elves = parse(input);
+    let elves = elves.as_slice();
+
+    let top_elf = top_elf(elves);
     println!("Top elf (part 1): {}", top_elf);
 
     let top_elves = top_elves(elves, 3);
@@ -48,7 +51,7 @@ mod tests {
 
     #[test]
     fn find_top_sum() {
-        let result = top_elves(vec![6000, 4000, 11000, 24000, 10000], 3);
+        let result = top_elves(&[6000, 4000, 11000, 24000, 10000], 3);
         assert_eq!(result, 45000);
     }
 }
