@@ -1,28 +1,15 @@
-use std::error;
-use std::num::ParseIntError;
-
-fn parse(input: &str) -> Result<Vec<usize>, ParseIntError> {
-    let mut elves: Vec<usize> = vec![];
-
-    let mut sum = 0;
-    for line in input.split('\n') {
-        if line.is_empty() {
-            elves.push(sum);
-            sum = 0;
-        } else {
-            let x: usize = line.to_string().parse()?;
-            sum += x;
-        }
-    }
-    if sum != 0 {
-        elves.push(sum);
-    }
-
-    Ok(elves)
+fn parse(input: &str) -> Vec<usize> {
+    input
+        .split("\n\n")
+        .map(|s| {
+            s.split('\n')
+                .fold(0, |a, s2| a + s2.to_string().parse().unwrap_or(0))
+        })
+        .collect()
 }
 
-fn top_elf(elves: &[usize]) -> Option<usize> {
-    elves.iter().max().copied()
+fn top_elf(elves: &[usize]) -> usize {
+    elves.iter().max().copied().unwrap_or(0)
 }
 
 fn top_elves(mut elves: Vec<usize>, count: usize) -> usize {
@@ -31,17 +18,15 @@ fn top_elves(mut elves: Vec<usize>, count: usize) -> usize {
     top.iter().sum()
 }
 
-fn main() -> Result<(), Box<dyn error::Error>> {
+fn main() {
     let input = include_str!("../input/day01.txt");
-    let elves = parse(input)?;
+    let elves = parse(input);
 
-    let top_elf = top_elf(elves.as_slice()).unwrap();
+    let top_elf = top_elf(elves.as_slice());
     println!("Top elf (part 1): {}", top_elf);
 
     let top_elves = top_elves(elves, 3);
     println!("Sum top elves (part 2): {}", top_elves);
-
-    Ok(())
 }
 
 #[cfg(test)]
@@ -51,13 +36,13 @@ mod tests {
     #[test]
     fn parse_elf_sums() {
         let input = include_str!("../input/day01_test.txt");
-        let result = parse(input).unwrap();
+        let result = parse(input);
         assert_eq!(result, [6000, 4000, 11000, 24000, 10000]);
     }
 
     #[test]
     fn find_max_elf() {
-        let result = top_elf(&[6000, 4000, 11000, 24000, 10000]).unwrap();
+        let result = top_elf(&[6000, 4000, 11000, 24000, 10000]);
         assert_eq!(result, 24000);
     }
 
