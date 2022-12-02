@@ -22,12 +22,28 @@ impl HasScore for Shape {
 }
 
 impl Shape {
-    fn new(c: char) -> Option<Self> {
+    fn from_char(c: char) -> Option<Self> {
         match c {
             'A' | 'X' => Some(Shape::Rock),
             'B' | 'Y' => Some(Shape::Paper),
             'C' | 'Z' => Some(Shape::Scissors),
             _ => None,
+        }
+    }
+
+    fn for_outcome(&self, outcome: Outcome) -> Self {
+        match outcome {
+            Outcome::Draw => *self,
+            Outcome::Lost => match self {
+                Shape::Rock => Shape::Scissors,
+                Shape::Paper => Shape::Rock,
+                Shape::Scissors => Shape::Paper,
+            },
+            Outcome::Won => match self {
+                Shape::Rock => Shape::Paper,
+                Shape::Paper => Shape::Scissors,
+                Shape::Scissors => Shape::Rock,
+            },
         }
     }
 }
@@ -100,38 +116,32 @@ impl HasScore for Round {
     }
 }
 
-fn parse(input: &str) -> Vec<Round> {
+fn parse(input: &str) -> Vec<(char, char)> {
     input
         .lines()
-        .map(|l| {
-            let chars: Vec<char> = l.chars().collect();
-            let opponent = Shape::new(chars[0]).unwrap();
-            let player = Shape::new(chars[2]).unwrap();
+        .map(|l| l.chars().collect())
+        .map(|chars: Vec<char>| (chars[0], chars[2]))
+        .collect()
+}
+
+fn part_one_rounds(input: &[(char, char)]) -> Vec<Round> {
+    input
+        .iter()
+        .map(|(opponent_c, player_c)| {
+            let opponent = Shape::from_char(*opponent_c).unwrap();
+            let player = Shape::from_char(*player_c).unwrap();
             Round(player, opponent)
         })
         .collect()
 }
 
-fn alt_parse(input: &str) -> Vec<Round> {
+fn part_two_rounds(input: &[(char, char)]) -> Vec<Round> {
     input
-        .lines()
-        .map(|l| {
-            let chars: Vec<char> = l.chars().collect();
-            let opponent: Shape = Shape::new(chars[0]).unwrap();
-            let desired_outcome: Outcome = Outcome::from_char(chars[2]).unwrap();
-            let player = match desired_outcome {
-                Outcome::Draw => opponent,
-                Outcome::Lost => match opponent {
-                    Shape::Rock => Shape::Scissors,
-                    Shape::Paper => Shape::Rock,
-                    Shape::Scissors => Shape::Paper,
-                },
-                Outcome::Won => match opponent {
-                    Shape::Rock => Shape::Paper,
-                    Shape::Paper => Shape::Scissors,
-                    Shape::Scissors => Shape::Rock,
-                },
-            };
+        .iter()
+        .map(|(opponent_c, outcome_c)| {
+            let opponent = Shape::from_char(*opponent_c).unwrap();
+            let desired_outcome = Outcome::from_char(*outcome_c).unwrap();
+            let player = opponent.for_outcome(desired_outcome);
             Round(player, opponent)
         })
         .collect()
@@ -143,13 +153,14 @@ fn player_score(rounds: Vec<Round>) -> u32 {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let input = include_str!("../input/day02.txt");
-    let rounds = parse(input);
+    let input = parse(input);
+    let input = input.as_slice();
 
+    let rounds = part_one_rounds(input);
     let player_score_one = player_score(rounds);
     println!("Player score (part 1): {}", player_score_one);
 
-    let rounds = alt_parse(input);
-
+    let rounds = part_two_rounds(input);
     let player_score_two = player_score(rounds);
     println!("Real player score (part 2): {}", player_score_two);
 
@@ -161,9 +172,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_rounds() {
+    fn parse_chars() {
         let input = include_str!("../input/day02_test.txt");
         let result = parse(input);
+        let expected = vec![('A', 'Y'), ('B', 'X'), ('C', 'Z')];
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn part_one_round_compositions() {
+        let result = part_one_rounds(&[('A', 'Y'), ('B', 'X'), ('C', 'Z')]);
         let expected = vec![
             Round(Shape::Paper, Shape::Rock),
             Round(Shape::Rock, Shape::Paper),
@@ -174,7 +193,7 @@ mod tests {
     }
 
     #[test]
-    fn player_score_calculates_total() {
+    fn part_one_player_score_calculates_total() {
         let rounds = vec![
             Round(Shape::Paper, Shape::Rock),
             Round(Shape::Rock, Shape::Paper),
@@ -186,9 +205,8 @@ mod tests {
     }
 
     #[test]
-    fn alt_parse_rounds() {
-        let input = include_str!("../input/day02_test.txt");
-        let result = alt_parse(input);
+    fn part_two_round_compositions() {
+        let result = part_two_rounds(&[('A', 'Y'), ('B', 'X'), ('C', 'Z')]);
         let expected = vec![
             Round(Shape::Rock, Shape::Rock),
             Round(Shape::Rock, Shape::Paper),
@@ -199,7 +217,7 @@ mod tests {
     }
 
     #[test]
-    fn player_score_calculates_total_part_two() {
+    fn part_two_player_score_calculates_total() {
         let rounds = vec![
             Round(Shape::Rock, Shape::Rock),
             Round(Shape::Rock, Shape::Paper),
