@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::Debug;
 
@@ -44,18 +44,16 @@ fn common_item(rucksacks: &[Rucksack]) -> char {
 }
 
 fn priority(c: char) -> usize {
-    let mut chars: Vec<char> = ('a'..='z').collect();
-    let mut uppercase = ('A'..='Z').collect();
-    chars.append(&mut uppercase);
-
-    let mut priority_map: HashMap<char, usize> = HashMap::new();
-    for (i, x) in chars.into_iter().enumerate() {
-        priority_map.insert(x, i + 1);
+    // a-z: 97-122, A-Z: 65-90
+    let b: usize = c as usize;
+    if c.is_ascii_lowercase() {
+        b - 96
+    } else {
+        b - 64 + 26
     }
-    priority_map[&c]
 }
 
-fn part_one(rucksacks: Vec<Rucksack>) -> usize {
+fn part_one(rucksacks: &[Rucksack]) -> usize {
     rucksacks
         .iter()
         .map(|r| r.common_item().unwrap())
@@ -63,13 +61,10 @@ fn part_one(rucksacks: Vec<Rucksack>) -> usize {
         .sum()
 }
 
-fn part_two(rucksacks: Vec<Rucksack>) -> usize {
+fn part_two(rucksacks: &[Rucksack]) -> usize {
     rucksacks
         .chunks(3)
-        .map(|group| {
-            let c = common_item(group);
-            priority(c)
-        })
+        .map(|group| priority(common_item(group)))
         .sum()
 }
 
@@ -80,11 +75,11 @@ fn parse(input: &str) -> Vec<Rucksack> {
 fn main() -> Result<(), Box<dyn Error>> {
     let input = include_str!("../input/day03.txt");
     let rucksacks = parse(input);
+    let rucksacks = rucksacks.as_slice();
 
     let sum = part_one(rucksacks);
     println!("Sum of common items priority (part 1): {}", sum);
 
-    let rucksacks = parse(input);
     let sum = part_two(rucksacks);
     println!("Sum of badges (part 2): {}", sum);
 
@@ -152,14 +147,14 @@ mod tests {
     #[test]
     fn common_items_priority_sum_test() {
         let rucksacks = test_rucksacks();
-        let result = part_one(rucksacks);
+        let result = part_one(rucksacks.as_slice());
         assert_eq!(result, 157);
     }
 
     #[test]
     fn part_two_test() {
         let rucksacks = test_rucksacks();
-        let result = part_two(rucksacks);
+        let result = part_two(rucksacks.as_slice());
         assert_eq!(result, 70);
     }
 }
