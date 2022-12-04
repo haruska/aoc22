@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::Debug;
@@ -34,22 +35,26 @@ impl Rucksack {
     }
 }
 
-fn common_item(rucksacks: &[Rucksack]) -> char {
-    let items: Vec<HashSet<char>> = rucksacks.iter().map(|r| r.unique_items()).collect();
-    let chars: HashSet<char> = items[1..].iter().fold(items[0].clone(), |acc, set| {
-        acc.intersection(set).copied().collect()
-    });
-    let chars: Vec<&char> = chars.iter().collect();
-    *chars[0]
+fn common_item(rucksacks: &[Rucksack]) -> Option<char> {
+    // unique char set of each rucksack sorted by size of set
+    let char_sets: Vec<HashSet<char>> = rucksacks
+        .iter()
+        .map(|r| r.unique_items())
+        .sorted_by(|a, b| a.len().partial_cmp(&b.len()).unwrap())
+        .collect();
+
+    // iterate over smallest set finding the first char existing in the other sets
+    char_sets[0]
+        .iter()
+        .find(|c| char_sets[1..].iter().all(|set| set.contains(c)))
+        .copied()
 }
 
 fn priority(c: char) -> usize {
-    // a-z: 97-122, A-Z: 65-90
-    let b: usize = c as usize;
     if c.is_ascii_lowercase() {
-        b - 96
+        c as usize - 'a' as usize + 1 // a-z priority range: 1-26
     } else {
-        b - 64 + 26
+        c as usize - 'A' as usize + 27 // A-Z priority range: 27-52
     }
 }
 
@@ -64,7 +69,7 @@ fn part_one(rucksacks: &[Rucksack]) -> usize {
 fn part_two(rucksacks: &[Rucksack]) -> usize {
     rucksacks
         .chunks(3)
-        .map(|group| priority(common_item(group)))
+        .map(|group| priority(common_item(group).unwrap()))
         .sum()
 }
 
@@ -145,7 +150,7 @@ mod tests {
     }
 
     #[test]
-    fn common_items_priority_sum_test() {
+    fn part_one_test() {
         let rucksacks = test_rucksacks();
         let result = part_one(rucksacks.as_slice());
         assert_eq!(result, 157);
