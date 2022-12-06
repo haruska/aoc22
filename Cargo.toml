@@ -19,5 +19,11 @@ path = "src/day03.rs"
 name = "day04"
 path = "src/day04.rs"
 
+[[bin]]
+name = "day05"
+path = "src/day05.rs"
+
 [dependencies]
 itertools = "0.10.5"
+serde = { version = "1.0", features = ["derive"] }
+recap = "0.1"
