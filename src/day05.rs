@@ -18,6 +18,14 @@ impl Stacks {
         }
     }
 
+    fn execute_two(&mut self, d: Direction) {
+        let from: &mut Stack = &mut self.stacks[d.from - 1];
+        let tail = from.split_off(from.len() - d.num_crates);
+        for c in tail.into_iter() {
+            self.stacks[d.to - 1].push(c);
+        }
+    }
+
     fn peek_all(&self) -> String {
         self.stacks.iter().map(|s| s.last().unwrap()).join("")
     }
@@ -74,6 +82,15 @@ fn part_one(stacks: Stacks, directions: Vec<Direction>) -> String {
     stacks.peek_all()
 }
 
+fn part_two(stacks: Stacks, directions: Vec<Direction>) -> String {
+    let mut stacks = stacks;
+
+    for d in directions {
+        stacks.execute_two(d);
+    }
+    stacks.peek_all()
+}
+
 fn times(n: usize) -> impl Iterator {
     std::iter::repeat(()).take(n)
 }
@@ -84,6 +101,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let part_one = part_one(stacks, directions);
     println!("Top of stacks (part 1): {}", part_one);
+
+    let (stacks, directions) = parse(input);
+
+    let part_two = part_two(stacks, directions);
+    println!("Top of stacks (part 2): {}", part_two);
 
     Ok(())
 }
@@ -140,5 +162,15 @@ mod tests {
         let result = part_one(stacks, directions);
 
         assert_eq!(result, "CMZ")
+    }
+
+    #[test]
+    fn part_two_test() {
+        let stacks = stacks_fixture();
+        let directions = directions_fixture();
+
+        let result = part_two(stacks, directions);
+
+        assert_eq!(result, "MCD");
     }
 }
