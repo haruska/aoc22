@@ -2,12 +2,14 @@ use serde::__private::de::Borrowed;
 use std::borrow::Borrow;
 use std::cell::{Ref, RefCell};
 use std::error::Error;
+use std::fmt;
 use std::rc::Rc;
 
 type WrappedNode = Rc<RefCell<Node>>;
 
-fn new_dir(name: &str) -> WrappedNode {
-    let node = Node::new(name, FSType::Dir);
+fn new_dir(name: &str, parent: Option<WrappedNode>) -> WrappedNode {
+    let mut node = Node::new(name, FSType::Dir);
+    node.parent = parent;
     Rc::new(RefCell::new(node))
 }
 
@@ -16,6 +18,38 @@ fn new_file(name: &str, fs_size: usize) -> WrappedNode {
     node.value = Some(fs_size);
 
     Rc::new(RefCell::new(node))
+}
+
+fn parent(cwd: WrappedNode) -> WrappedNode {
+    let node: &RefCell<Node> = cwd.borrow();
+    let node = node.borrow();
+    let parent = node.parent.as_ref();
+
+    if let Some(parent) = parent {
+        Rc::clone(parent)
+    } else {
+        panic!("Could not find parent for {:?}", node);
+    }
+}
+
+fn child_dir(cwd: WrappedNode, dir_name: &str) -> WrappedNode {
+    let node: &RefCell<Node> = cwd.borrow();
+    let children = &node.borrow().children;
+    let child = children.iter().find(|n| {
+        let n = Rc::clone(n);
+        let node: &RefCell<Node> = n.borrow();
+        let node = node.borrow();
+        node.fs_type == FSType::Dir && node.name == dir_name
+    });
+
+    if let Some(child) = child {
+        Rc::clone(child)
+    } else {
+        panic!(
+            "Could not find child dir {} in children {:?}",
+            dir_name, children
+        );
+    }
 }
 
 // processes all instructions returning the root
@@ -29,24 +63,10 @@ fn process(instructions: Vec<Instruction>) -> WrappedNode {
                 match x.as_str() {
                     "/" => cwd = Rc::clone(&root),
                     ".." => {
-                        let node: &RefCell<Node> = cwd.borrow();
-                        let node = node.borrow();
-                        let parent: &Rc<RefCell<Node>> = node.parent.as_ref().unwrap();
-                        cwd = Rc::clone(parent);
+                        cwd = parent(cwd);
                     }
                     dir_name => {
-                        let node: &RefCell<Node> = cwd.borrow();
-                        let children = &node.borrow().children;
-                        cwd = Rc::clone(
-                            children
-                                .iter()
-                                .find(|n| {
-                                    let node: &RefCell<Node> = cwd.borrow();
-                                    let node = node.borrow();
-                                    node.fs_type == FSType::Dir && node.name == dir_name
-                                })
-                                .unwrap(),
-                        );
+                        cwd = child_dir(cwd, dir_name);
                     }
                 };
             }
@@ -55,27 +75,26 @@ fn process(instructions: Vec<Instruction>) -> WrappedNode {
                     match ls_type {
                         LSTypeSize::Dir => {
                             let node: &RefCell<Node> = cwd.borrow();
-                            let mut children = &node.borrow().children;
+                            let mut children = &mut node.borrow_mut().children;
                             if !children.iter().any(|wn| {
                                 let node: &RefCell<Node> = wn.borrow();
                                 let node = node.borrow();
                                 node.fs_type == FSType::Dir && node.name.as_str() == ls_val
                             }) {
-                                let child_dir = new_dir(ls_val);
-                                children.push(child_dir);
+                                let child_dir = new_dir(ls_val, Some(Rc::clone(&cwd)));
+                                children.push(Rc::clone(&child_dir));
                             }
                         }
                         LSTypeSize::Size(s) => {
                             let node: &RefCell<Node> = cwd.borrow();
-                            let mut children = &node.borrow().children;
+                            let mut children = &mut node.borrow_mut().children;
                             if !children.iter().any(|wn| {
                                 let node: &RefCell<Node> = wn.borrow();
                                 let node = node.borrow();
                                 node.fs_type == FSType::File && node.name.as_str() == ls_val
                             }) {
-                                let fs_size: usize = ls_val.parse().unwrap();
-                                let child_file = new_file(ls_val, fs_size);
-                                children.push(child_file)
+                                let child_file = new_file(ls_val, *s);
+                                children.push(Rc::clone(&child_file));
                             }
                         }
                     }
@@ -86,13 +105,24 @@ fn process(instructions: Vec<Instruction>) -> WrappedNode {
     root
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq)]
 struct Node {
     name: String,
     fs_type: FSType,
     value: Option<usize>,
     children: Vec<Rc<RefCell<Node>>>,
     parent: Option<Rc<RefCell<Node>>>,
+}
+
+impl fmt::Debug for Node {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Node")
+            .field("name", &self.name)
+            .field("fs_type", &self.fs_type)
+            .field("size", &self.value)
+            .field("children", &self.children)
+            .finish()
+    }
 }
 
 #[derive(PartialEq, Debug)]
@@ -222,7 +252,7 @@ mod tests {
 
     #[test]
     fn building_file_system_test() {
-        let root = process(input_fixture());
-        assert_eq!(root, new_dir("/"));
+        let root: Rc<RefCell<Node>> = process(input_fixture());
+        let node = root.borrow_mut().children.entry(path).or_default().clone()
     }
 }
