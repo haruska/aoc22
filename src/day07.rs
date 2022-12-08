@@ -1,72 +1,81 @@
-use std::cell::RefCell;
+use serde::__private::de::Borrowed;
+use std::borrow::Borrow;
+use std::cell::{Ref, RefCell};
 use std::error::Error;
 use std::rc::Rc;
 
-#[derive(PartialEq, Debug)]
-struct FileSystem {
-    root: Rc<RefCell<Directory>>,
-    cwd: Rc<RefCell<Directory>>,
+type WrappedNode = Rc<RefCell<Node>>;
+
+fn new_dir(name: &str) -> WrappedNode {
+    let node = Node::new(name, FSType::Dir);
+    Rc::new(RefCell::new(node))
 }
 
-impl FileSystem {
-    fn new() -> Self {
-        let root = Directory {
-            name: "/".to_string(),
-            parent: None,
-            children: vec![],
-        };
+fn new_file(name: &str, fs_size: usize) -> WrappedNode {
+    let mut node = Node::new(name, FSType::File);
+    node.value = Some(fs_size);
 
-        let wrapped_root = Rc::new(RefCell::new(root));
+    Rc::new(RefCell::new(node))
+}
 
-        FileSystem {
-            root: Rc::clone(&wrapped_root),
-            cwd: Rc::clone(&wrapped_root),
-        }
-    }
+// processes all instructions returning the root
+fn process(instructions: Vec<Instruction>) -> WrappedNode {
+    let root = Rc::new(RefCell::new(Node::new("/", FSType::Dir)));
+    let mut cwd: Rc<RefCell<Node>> = Rc::clone(&root);
 
-    fn process(&mut self, instruction: Instruction) {
+    for instruction in instructions {
         match instruction {
             Instruction::CD(x) => {
-                let new_dir = match x.as_str() {
-                    "/" => Rc::clone(&self.root),
+                match x.as_str() {
+                    "/" => cwd = Rc::clone(&root),
                     ".." => {
-                        if let Some(parent) = &self.cwd.borrow().parent {
-                            Rc::clone(&parent)
-                        } else {
-                            Rc::clone(&self.cwd)
-                        }
+                        let node: &RefCell<Node> = cwd.borrow();
+                        let node = node.borrow();
+                        let parent: &Rc<RefCell<Node>> = node.parent.as_ref().unwrap();
+                        cwd = Rc::clone(parent);
                     }
-                    y => {
-                        let y_dir = self.cwd.borrow().child_dir(y).unwrap();
-                        Rc::clone(&y_dir)
+                    dir_name => {
+                        let node: &RefCell<Node> = cwd.borrow();
+                        let children = &node.borrow().children;
+                        cwd = Rc::clone(
+                            children
+                                .iter()
+                                .find(|n| {
+                                    let node: &RefCell<Node> = cwd.borrow();
+                                    let node = node.borrow();
+                                    node.fs_type == FSType::Dir && node.name == dir_name
+                                })
+                                .unwrap(),
+                        );
                     }
                 };
-                self.cwd = new_dir;
             }
             Instruction::LS(res) => {
-                let cwd = &mut self.cwd.borrow_mut();
-
-                for (x, y) in res.iter() {
-                    match x {
+                for (ls_type, ls_val) in res.iter() {
+                    match ls_type {
                         LSTypeSize::Dir => {
-                            if cwd.child_dir(y).is_none() {
-                                let d: Directory = Directory {
-                                    name: y.to_string(),
-                                    parent: Some(Rc::clone(&self.cwd)),
-                                    children: vec![],
-                                };
-
-                                cwd.children.push(Node::Dir(Rc::new(RefCell::new(d))))
+                            let node: &RefCell<Node> = cwd.borrow();
+                            let mut children = &node.borrow().children;
+                            if !children.iter().any(|wn| {
+                                let node: &RefCell<Node> = wn.borrow();
+                                let node = node.borrow();
+                                node.fs_type == FSType::Dir && node.name.as_str() == ls_val
+                            }) {
+                                let child_dir = new_dir(ls_val);
+                                children.push(child_dir);
                             }
                         }
                         LSTypeSize::Size(s) => {
-                            if !cwd.file_exists(y) {
-                                let f: File = File {
-                                    name: y.to_string(),
-                                    parent: Rc::clone(&self.cwd),
-                                    size: *s,
-                                };
-                                cwd.children.push(Node::File(f))
+                            let node: &RefCell<Node> = cwd.borrow();
+                            let mut children = &node.borrow().children;
+                            if !children.iter().any(|wn| {
+                                let node: &RefCell<Node> = wn.borrow();
+                                let node = node.borrow();
+                                node.fs_type == FSType::File && node.name.as_str() == ls_val
+                            }) {
+                                let fs_size: usize = ls_val.parse().unwrap();
+                                let child_file = new_file(ls_val, fs_size);
+                                children.push(child_file)
                             }
                         }
                     }
@@ -74,54 +83,47 @@ impl FileSystem {
             }
         }
     }
+    root
 }
 
 #[derive(PartialEq, Debug)]
-struct Directory {
+struct Node {
     name: String,
-    parent: Option<Rc<RefCell<Directory>>>,
-    children: Vec<Node>,
-}
-
-impl Directory {
-    fn child_dir(&self, name: &str) -> Option<Rc<RefCell<Directory>>> {
-        let child = self.children.iter().find(|n| match n {
-            Node::Dir(d) => d.borrow().name == name,
-            Node::File(_) => false,
-        });
-        if let Some(Node::Dir(d)) = child {
-            Some(Rc::clone(d))
-        } else {
-            None
-        }
-    }
-
-    fn file_exists(&self, name: &str) -> bool {
-        self.children.iter().any(|n| match n {
-            Node::Dir(_) => false,
-            Node::File(f) => f.name == name,
-        })
-    }
+    fs_type: FSType,
+    value: Option<usize>,
+    children: Vec<Rc<RefCell<Node>>>,
+    parent: Option<Rc<RefCell<Node>>>,
 }
 
 #[derive(PartialEq, Debug)]
-struct File {
-    name: String,
-    parent: Rc<RefCell<Directory>>,
-    size: usize,
-}
-
-#[derive(PartialEq, Debug)]
-enum Node {
-    Dir(Rc<RefCell<Directory>>),
-    File(File),
+enum FSType {
+    File,
+    Dir,
 }
 
 impl Node {
-    fn size(&self) -> usize {
-        match self {
-            Node::Dir(dir) => dir.borrow().children.iter().map(|n| n.size()).sum(),
-            Node::File(f) => f.size,
+    fn new(name: &str, fs_type: FSType) -> Node {
+        Node {
+            name: name.to_string(),
+            fs_type,
+            value: None,
+            parent: None,
+            children: vec![],
+        }
+    }
+
+    fn fs_size(&self) -> usize {
+        match self.fs_type {
+            FSType::Dir => self
+                .children
+                .iter()
+                .map(|n| {
+                    let node: &RefCell<Node> = n.borrow();
+                    let node = node.borrow();
+                    node.fs_size()
+                })
+                .sum(),
+            FSType::File => self.value.unwrap(),
         }
     }
 }
@@ -220,10 +222,7 @@ mod tests {
 
     #[test]
     fn building_file_system_test() {
-        let mut fs = FileSystem::new();
-        for instruction in input_fixture().into_iter() {
-            fs.process(instruction);
-        }
-        assert_eq!(fs, FileSystem::new());
+        let root = process(input_fixture());
+        assert_eq!(root, new_dir("/"));
     }
 }
