@@ -3,53 +3,9 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::rc::Rc;
+use itertools::Itertools;
 
 type WrappedNode<'a> = Rc<RefCell<Node<'a>>>;
-//
-// fn new_dir(name: &str, parent: Option<WrappedNode>) -> WrappedNode {
-//     let mut node = Node::new(name, FSType::Dir);
-//     node.parent = parent;
-//     Rc::new(RefCell::new(node))
-// }
-//
-// fn new_file(name: &str, fs_size: usize) -> WrappedNode {
-//     let mut node = Node::new(name, FSType::File);
-//     node.value = Some(fs_size);
-//
-//     Rc::new(RefCell::new(node))
-// }
-//
-// fn parent(cwd: WrappedNode) -> WrappedNode {
-//     let node: &RefCell<Node> = cwd.borrow();
-//     let node = node.borrow();
-//     let parent = node.parent.as_ref();
-//
-//     if let Some(parent) = parent {
-//         Rc::clone(parent)
-//     } else {
-//         panic!("Could not find parent for {:?}", node);
-//     }
-// }
-//
-// fn child_dir(cwd: WrappedNode, dir_name: &str) -> WrappedNode {
-//     let node: &RefCell<Node> = cwd.borrow();
-//     let children = &node.borrow().children;
-//     let child = children.iter().find(|n| {
-//         let n = Rc::clone(n);
-//         let node: &RefCell<Node> = n.borrow();
-//         let node = node.borrow();
-//         node.fs_type == FSType::Dir && node.name == dir_name
-//     });
-//
-//     if let Some(child) = child {
-//         Rc::clone(child)
-//     } else {
-//         panic!(
-//             "Could not find child dir {} in children {:?}",
-//             dir_name, children
-//         );
-//     }
-// }
 
 // processes all instructions returning the root
 fn process(instructions: Vec<Instruction>) -> WrappedNode {
@@ -214,6 +170,18 @@ fn part_one(root: WrappedNode) -> usize {
     }).filter(|s| *s <= 100000).sum()
 }
 
+fn part_two(root: WrappedNode) -> usize {
+    let root_size = root.borrow().fs_size();
+    let avail = 70000000 - root_size;
+    let adtl_needed = 30000000 - avail;
+
+    let candidates: Vec<usize> = all_dirs(root).iter().map(|dir| {
+        dir.clone().borrow().fs_size()
+    }).filter(|s| *s >= adtl_needed).sorted().collect();
+
+    candidates[0]
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let input = include_str!("../input/day07.txt");
     let instructions = parse(input);
@@ -222,6 +190,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let p1 = part_one(root);
     println!("Part One: {p1}");
+
+    let instructions = parse(input);
+    let root = process(instructions);
+    let p2 = part_two(root);
+    println!("Part Two: {p2}");
 
     Ok(())
 }
@@ -296,5 +269,13 @@ mod tests {
         let res = part_one(root);
 
         assert_eq!(res, 95437)
+    }
+
+    #[test]
+    fn part_two_test() {
+        let root = process(input_fixture());
+        let res = part_two(root);
+
+        assert_eq!(res, 24933642)
     }
 }
