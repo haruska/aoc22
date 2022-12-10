@@ -96,12 +96,36 @@ fn part_one(cmds: Vec<Cmd>) -> usize {
     visited.len()
 }
 
+fn part_two(cmds: Vec<Cmd>) -> usize {
+    let mut visited: HashSet<Point> = HashSet::new();
+    visited.insert((0, 0));
+
+    let mut knots: Vec<Point> = vec![(0, 0); 10];
+
+    for cmd in cmds.into_iter() {
+        let Cmd(dir, times) = cmd;
+        for _ in 0..times {
+            knots[0] = mv(knots[0], &dir);
+            for i in 1..knots.len() {
+                knots[i] = mv_tail(&knots[i - 1], knots[i]);
+            }
+            visited.insert(knots[knots.len() - 1]);
+        }
+    }
+
+    visited.len()
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let input = include_str!("../input/day09.txt");
     let cmds = parse(input);
 
     let p1 = part_one(cmds);
     println!("Total positions the tail visited (Part 1): {p1}");
+
+    let cmds = parse(input);
+    let p2 = part_two(cmds);
+    println!("Total positions the tail visited (Part 2): {p2}");
 
     Ok(())
 }
