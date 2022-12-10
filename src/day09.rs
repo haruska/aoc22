@@ -77,35 +77,16 @@ fn mv_tail(head: &Point, tail: Point) -> Point {
     ret
 }
 
-fn part_one(cmds: Vec<Cmd>) -> usize {
+fn num_tail_visits(cmds: &[Cmd], knots: usize) -> usize {
     let mut visited: HashSet<Point> = HashSet::new();
     visited.insert((0, 0));
 
-    let mut head = (0, 0);
-    let mut tail = (0, 0);
+    let mut knots: Vec<Point> = vec![(0, 0); knots];
 
-    for cmd in cmds.into_iter() {
-        let Cmd(d, i) = cmd;
-        for _ in 0..i {
-            head = mv(head, &d);
-            tail = mv_tail(&head, tail);
-            visited.insert(tail);
-        }
-    }
-
-    visited.len()
-}
-
-fn part_two(cmds: Vec<Cmd>) -> usize {
-    let mut visited: HashSet<Point> = HashSet::new();
-    visited.insert((0, 0));
-
-    let mut knots: Vec<Point> = vec![(0, 0); 10];
-
-    for cmd in cmds.into_iter() {
+    for cmd in cmds.iter() {
         let Cmd(dir, times) = cmd;
-        for _ in 0..times {
-            knots[0] = mv(knots[0], &dir);
+        for _ in 0..*times {
+            knots[0] = mv(knots[0], dir);
             for i in 1..knots.len() {
                 knots[i] = mv_tail(&knots[i - 1], knots[i]);
             }
@@ -116,15 +97,22 @@ fn part_two(cmds: Vec<Cmd>) -> usize {
     visited.len()
 }
 
+fn part_one(cmds: &[Cmd]) -> usize {
+    num_tail_visits(cmds, 2)
+}
+
+fn part_two(cmds: &[Cmd]) -> usize {
+    num_tail_visits(cmds, 10)
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let input = include_str!("../input/day09.txt");
     let cmds = parse(input);
 
-    let p1 = part_one(cmds);
+    let p1 = part_one(&cmds);
     println!("Total positions the tail visited (Part 1): {p1}");
 
-    let cmds = parse(input);
-    let p2 = part_two(cmds);
+    let p2 = part_two(&cmds);
     println!("Total positions the tail visited (Part 2): {p2}");
 
     Ok(())
@@ -188,7 +176,15 @@ mod tests {
     #[test]
     fn part_one_test() {
         let cmds = input_fixture();
-        let result = part_one(cmds);
+        let result = part_one(&cmds);
         assert_eq!(result, 13);
+    }
+
+    #[test]
+    fn part_two_test() {
+        let input = include_str!("../input/day09_test2.txt");
+        let cmds = parse(input);
+        let result = part_two(&cmds);
+        assert_eq!(result, 36);
     }
 }
