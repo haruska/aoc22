@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::error::Error;
 
 #[derive(Debug, PartialEq)]
@@ -86,30 +87,49 @@ impl Monkey {
     }
 }
 
-// fn play_round(mut monkeys: Vec<Monkey>) {
-//     for i in 0..monkeys.len() {
-//         let m = &mut monkeys[i];
-//         while let Some(item) = m.items.pop_front() {
-//             let inspect_val = match m.operation {
-//                 Operation::Square => item * item,
-//                 Operation::Add(x) => item + x,
-//                 Operation::Mult(x) => item * x,
-//             };
-//             let bored_val = inspect_val / 3;
-//             if bored_val % m.div_test == 0 {
-//                 monkeys.get_mut(m.throw_true).unwrap().items.push_back(bored_val);
-//             } else {
-//                 monkeys[m.throw_false].items.push_back(bored_val);
-//             }
-//         }
-//     }
-// }
+fn part_one(monkeys: &[Monkey]) -> usize {
+    let mut counts: Vec<usize> = vec![0; monkeys.len()];
+
+    let mut queues: Vec<VecDeque<u32>> = vec![VecDeque::new(); monkeys.len()];
+    for (i, m) in monkeys.iter().enumerate() {
+        for item in m.starting_items.iter() {
+            queues[i].push_back(*item);
+        }
+    }
+
+    for _ in 0..20 {
+        for i in 0..monkeys.len() {
+            let q: Vec<u32> = queues[i].drain(..).collect();
+            let q = &q[..];
+
+            counts[i] += q.len();
+
+            let changes = monkeys[i].inspect_items(q);
+            for (m_index, val) in changes {
+                queues[m_index].push_back(val);
+            }
+        }
+    }
+
+    counts.sort();
+    let x = counts[monkeys.len() - 1];
+    let y = counts[monkeys.len() - 2];
+
+    x * y
+}
 
 fn parse(input: &str) -> Vec<Monkey> {
     input.split("\n\n").map(Monkey::from_str_block).collect()
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let input = include_str!("../input/day11.txt");
+    let monkeys = parse(input);
+    let monkeys = monkeys.as_slice();
+
+    let p1 = part_one(monkeys);
+    println!("Part One: {p1}");
+
     Ok(())
 }
 
@@ -133,5 +153,14 @@ mod tests {
         assert_eq!(monkey.div_test, 23);
         assert_eq!(monkey.throw_true, 2);
         assert_eq!(monkey.throw_false, 3);
+    }
+
+    #[test]
+    fn part_one_test() {
+        let input = include_str!("../input/day11_test.txt");
+        let monkeys = parse(input);
+        let result = part_one(monkeys.as_slice());
+
+        assert_eq!(result, 10605);
     }
 }
