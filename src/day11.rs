@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::error::Error;
 
 #[derive(Debug, PartialEq)]
@@ -111,33 +110,22 @@ fn part_one(monkeys: &[Monkey]) -> usize {
 
 fn process(monkeys: &[Monkey], rounds: usize, divisor: Option<u64>, modulo: Option<u64>) -> usize {
     let mut counts: Vec<usize> = vec![0; monkeys.len()];
-
-    let mut queues: Vec<VecDeque<u64>> = vec![VecDeque::new(); monkeys.len()];
-    for (i, m) in monkeys.iter().enumerate() {
-        for item in m.starting_items.iter() {
-            queues[i].push_back(*item);
-        }
-    }
+    let mut queues: Vec<Vec<u64>> = monkeys.iter().map(|m| m.starting_items.clone()).collect();
 
     for _ in 0..rounds {
         for i in 0..monkeys.len() {
-            let q: Vec<u64> = queues[i].drain(..).collect();
-            let q = &q[..];
+            counts[i] += queues[i].len();
 
-            counts[i] += q.len();
-
-            let changes = monkeys[i].inspect_items(q, divisor, modulo);
-            for (m_index, val) in changes {
-                queues[m_index].push_back(val);
+            for (m_index, val) in monkeys[i].inspect_items(queues[i].as_slice(), divisor, modulo) {
+                queues[m_index].push(val);
             }
+
+            queues[i].clear();
         }
     }
 
     counts.sort();
-    let x = counts[monkeys.len() - 1];
-    let y = counts[monkeys.len() - 2];
-
-    x * y
+    counts[counts.len() - 2..].iter().product()
 }
 
 fn parse(input: &str) -> Vec<Monkey> {
