@@ -4,35 +4,48 @@ use std::error::Error;
 #[derive(Debug, PartialEq)]
 enum Operation {
     Square,
-    Add(u32),
-    Mult(u32),
+    Add(u64),
+    Mult(u64),
 }
 
 #[derive(Debug, PartialEq)]
 struct Monkey {
-    starting_items: Vec<u32>,
+    starting_items: Vec<u64>,
     operation: Operation,
-    div_test: u32,
+    div_test: u64,
     throw_true: usize,
     throw_false: usize,
 }
 
 impl Monkey {
-    fn inspect_items(&self, items: &[u32]) -> Vec<(usize, u32)> {
+    fn inspect_items(
+        &self,
+        items: &[u64],
+        divisor: Option<u64>,
+        modulo: Option<u64>,
+    ) -> Vec<(usize, u64)> {
         items
             .iter()
             .map(|item| {
-                let inspect_val = match self.operation {
+                let mut inspect_val = match self.operation {
                     Operation::Square => item * item,
                     Operation::Add(x) => item + x,
                     Operation::Mult(x) => item * x,
                 };
-                let bored_val = inspect_val / 3;
 
-                if bored_val % self.div_test == 0 {
-                    (self.throw_true, bored_val)
+                if let Some(divisor) = divisor {
+                    inspect_val /= divisor;
+                }
+
+                let mut throw_val = inspect_val;
+                if let Some(modulo) = modulo {
+                    throw_val %= modulo;
+                }
+
+                if inspect_val % self.div_test == 0 {
+                    (self.throw_true, throw_val)
                 } else {
-                    (self.throw_false, bored_val)
+                    (self.throw_false, throw_val)
                 }
             })
             .collect()
@@ -51,7 +64,7 @@ impl Monkey {
         let operation = if operation == "old * old" {
             Operation::Square
         } else if operation.starts_with("old *") {
-            let x: u32 = operation
+            let x: u64 = operation
                 .split_whitespace()
                 .last()
                 .unwrap()
@@ -87,24 +100,33 @@ impl Monkey {
     }
 }
 
+fn part_two(monkeys: &[Monkey]) -> usize {
+    let m = monkeys.iter().fold(1, |acc, m| acc * m.div_test);
+    process(monkeys, 10000, None, Some(m))
+}
+
 fn part_one(monkeys: &[Monkey]) -> usize {
+    process(monkeys, 20, Some(3), None)
+}
+
+fn process(monkeys: &[Monkey], rounds: usize, divisor: Option<u64>, modulo: Option<u64>) -> usize {
     let mut counts: Vec<usize> = vec![0; monkeys.len()];
 
-    let mut queues: Vec<VecDeque<u32>> = vec![VecDeque::new(); monkeys.len()];
+    let mut queues: Vec<VecDeque<u64>> = vec![VecDeque::new(); monkeys.len()];
     for (i, m) in monkeys.iter().enumerate() {
         for item in m.starting_items.iter() {
             queues[i].push_back(*item);
         }
     }
 
-    for _ in 0..20 {
+    for _ in 0..rounds {
         for i in 0..monkeys.len() {
-            let q: Vec<u32> = queues[i].drain(..).collect();
+            let q: Vec<u64> = queues[i].drain(..).collect();
             let q = &q[..];
 
             counts[i] += q.len();
 
-            let changes = monkeys[i].inspect_items(q);
+            let changes = monkeys[i].inspect_items(q, divisor, modulo);
             for (m_index, val) in changes {
                 queues[m_index].push_back(val);
             }
@@ -129,6 +151,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let p1 = part_one(monkeys);
     println!("Part One: {p1}");
+
+    let p2 = part_two(monkeys);
+    println!("Part Two: {p2}");
 
     Ok(())
 }
@@ -162,5 +187,14 @@ mod tests {
         let result = part_one(monkeys.as_slice());
 
         assert_eq!(result, 10605);
+    }
+
+    #[test]
+    fn part_two_test() {
+        let input = include_str!("../input/day11_test.txt");
+        let monkeys = parse(input);
+        let result = part_two(monkeys.as_slice());
+
+        assert_eq!(result, 2713310158);
     }
 }
