@@ -74,6 +74,20 @@ impl Map for HeightMap {
     }
 }
 
+impl HeightMap {
+    fn from(other: &HeightMap, start: &Point) -> HeightMap {
+        let mut map = other.map.clone();
+        let (i, j) = other.start;
+        map[i][j] = b'a';
+
+        HeightMap {
+            start: *start,
+            finish: other.finish,
+            map,
+        }
+    }
+}
+
 struct VisitedMap {
     map: Vec<Vec<bool>>,
 }
@@ -125,7 +139,22 @@ fn possible(h_map: &HeightMap, visited: &VisitedMap, point: &Point) -> Vec<Point
         .collect()
 }
 
-fn part_one(h_map: &HeightMap) -> usize {
+fn possible_starts(h_map: &HeightMap) -> Vec<Point> {
+    let mut points = vec![];
+
+    for i in 0..h_map.height() {
+        for j in 0..h_map.width() {
+            let p: Point = (i, j);
+            if *h_map.val_at(&p) == b'a' {
+                points.push(p);
+            }
+        }
+    }
+
+    points
+}
+
+fn shortest_path(h_map: &HeightMap) -> Option<usize> {
     let mut visited = VisitedMap::new(h_map.height(), h_map.width());
     let mut steps = 0;
 
@@ -139,7 +168,7 @@ fn part_one(h_map: &HeightMap) -> usize {
             visited.visit(p);
 
             if h_map.finish == *p {
-                return steps;
+                return Some(steps);
             }
 
             let possible_points = possible(h_map, &visited, p);
@@ -156,7 +185,26 @@ fn part_one(h_map: &HeightMap) -> usize {
 
         steps += 1;
     }
-    steps
+    None
+}
+
+fn part_one(h_map: &HeightMap) -> usize {
+    if let Some(steps) = shortest_path(h_map) {
+        steps
+    } else {
+        0
+    }
+}
+
+fn part_two(h_map: &HeightMap) -> usize {
+    possible_starts(h_map)
+        .iter()
+        .filter_map(|start| {
+            let hm = HeightMap::from(h_map, start);
+            shortest_path(&hm)
+        })
+        .min()
+        .unwrap_or(0)
 }
 
 fn parse(input: &str) -> HeightMap {
@@ -188,6 +236,9 @@ fn main() {
 
     let p1 = part_one(&h_map);
     println!("Part One: {p1}");
+
+    let p2 = part_two(&h_map);
+    println!("Part Two: {p2}");
 }
 
 #[cfg(test)]
@@ -211,5 +262,12 @@ mod tests {
         let h_map = test_map();
         let result = part_one(&h_map);
         assert_eq!(result, 31);
+    }
+
+    #[test]
+    fn part_two_test() {
+        let h_map = test_map();
+        let result = part_two(&h_map);
+        assert_eq!(result, 29);
     }
 }
