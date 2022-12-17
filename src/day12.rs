@@ -1,15 +1,52 @@
 use itertools::Itertools;
 use std::collections::HashSet;
 
-fn main() {
-    let input = include_str!("../input/day12.txt");
-    let h_map = parse(input);
-
-    let p1 = part_one(&h_map);
-    println!("Part One: {p1}");
-}
-
 type Point = (usize, usize);
+
+trait Map {
+    type Item;
+
+    fn map(&self) -> &Vec<Vec<Self::Item>>;
+
+    fn height(&self) -> usize {
+        self.map().len()
+    }
+
+    fn width(&self) -> usize {
+        self.map()[0].len()
+    }
+
+    fn on_map(&self, point: &Point) -> bool {
+        let (i, j) = *point;
+        i < self.height() && j < self.width()
+    }
+
+    fn val_at(&self, point: &Point) -> &Self::Item {
+        let (i, j) = *point;
+        &self.map()[i][j]
+    }
+
+    fn neighbors(&self, point: &Point) -> Vec<Point> {
+        let (i, j) = *point;
+
+        let mut points = vec![];
+
+        if i < self.height() - 1 {
+            points.push((i + 1, j));
+        }
+        if i > 0 {
+            points.push((i - 1, j));
+        }
+        if j < self.width() - 1 {
+            points.push((i, j + 1));
+        }
+        if j > 0 {
+            points.push((i, j - 1));
+        }
+
+        points
+    }
+}
 
 struct HeightMap {
     map: Vec<Vec<u8>>,
@@ -17,105 +54,107 @@ struct HeightMap {
     finish: Point,
 }
 
-impl HeightMap {
-    fn height(&self) -> usize {
-        self.map.len()
+impl Map for HeightMap {
+    type Item = u8;
+
+    fn map(&self) -> &Vec<Vec<Self::Item>> {
+        &self.map
     }
 
-    fn width(&self) -> usize {
-        self.map[0].len()
-    }
-
-    fn on_map(&self, point: Point) -> bool {
-        let (x, y) = point;
-        x < self.width() && y < self.height()
-    }
-
-    fn val_at(&self, point: Point) -> u8 {
-        let (x, y) = point;
-        self.map[y][x]
-    }
-
-    fn neighbor_finish(&self, point: Point) -> bool {
-        self.neighbors(&point).contains(&self.finish)
-    }
-
-    fn neighbors(&self, point: &Point) -> Vec<Point> {
-        let (x, y) = *point;
-
-        let mut points = vec![];
-
-        if x < self.width() - 1 {
-            points.push((x + 1, y));
+    fn val_at(&self, point: &Point) -> &Self::Item {
+        if *point == self.start {
+            return &b'a';
         }
-        if x > 0 {
-            points.push((x - 1, y));
-        }
-        if y < self.height() - 1 {
-            points.push((x, y + 1));
-        }
-        if y > 0 {
-            points.push((x, y - 1));
+        if *point == self.finish {
+            return &b'z';
         }
 
-        points
+        let (i, j) = *point;
+        &self.map()[i][j]
+    }
+}
+
+struct VisitedMap {
+    map: Vec<Vec<bool>>,
+}
+
+impl Map for VisitedMap {
+    type Item = bool;
+
+    fn map(&self) -> &Vec<Vec<Self::Item>> {
+        &self.map
+    }
+}
+
+impl VisitedMap {
+    fn new(height: usize, width: usize) -> Self {
+        Self {
+            map: vec![vec![false; width]; height],
+        }
     }
 
-    fn has_visited(&self, visited: &[Vec<bool>], point: &Point) -> bool {
-        let (x, y) = *point;
-        if self.on_map(*point) {
-            visited[y][x]
+    fn visit(&mut self, point: &Point) {
+        let (i, j) = *point;
+        self.map[i][j] = true;
+    }
+
+    fn has_visited(&self, point: &Point) -> bool {
+        let (i, j) = *point;
+        if self.on_map(point) {
+            self.map[i][j]
         } else {
             true
         }
     }
 }
 
-fn possible(h_map: &HeightMap, visited: &[Vec<bool>], point: Point) -> Vec<Point> {
-    let points = h_map.neighbors(&point);
+fn possible(h_map: &HeightMap, visited: &VisitedMap, point: &Point) -> Vec<Point> {
+    let neighbors = h_map.neighbors(point);
+    let point_val = h_map.val_at(point);
 
-    points
+    neighbors
         .into_iter()
-        .filter(|p| {
-            let not_visited = !h_map.has_visited(visited, p);
+        .filter(|neighbor| {
+            let has_visited = visited.has_visited(neighbor);
 
-            let cur_val = h_map.val_at(point);
-            let nei_val = h_map.val_at(*p);
-            let can_climb = point == h_map.start || nei_val <= cur_val + 1;
+            let neighbor_val = h_map.val_at(neighbor);
+            let can_climb = *neighbor_val <= *point_val + 1;
 
-            not_visited && can_climb
+            !has_visited && can_climb
         })
         .collect()
 }
 
 fn part_one(h_map: &HeightMap) -> usize {
-    let mut visited: Vec<Vec<bool>> = vec![vec![false; h_map.width()]; h_map.height()];
+    let mut visited = VisitedMap::new(h_map.height(), h_map.width());
     let mut steps = 0;
 
     let mut points = HashSet::new();
 
     points.insert(h_map.start);
-    visited[h_map.start.1][h_map.start.0] = true;
 
     while !points.is_empty() {
-        steps += 1;
-        let mut next_points = vec![];
+        let mut next_points = HashSet::new();
         for p in &points {
-            if h_map.neighbor_finish(*p) {
+            visited.visit(p);
+
+            if h_map.finish == *p {
                 return steps;
             }
 
-            let possible_points = possible(h_map, &visited, *p);
+            let possible_points = possible(h_map, &visited, p);
             for pp in possible_points {
-                next_points.push(pp);
+                next_points.insert(pp);
             }
         }
 
         points.clear();
+
         for p in next_points {
             points.insert(p);
-            visited[p.1][p.0] = true;
         }
+
+        steps += 1;
     }
     steps
 }
@@ -141,6 +180,14 @@ fn parse(input: &str) -> HeightMap {
     }
 
     HeightMap { map, start, finish }
+}
+
+fn main() {
+    let input = include_str!("../input/day12.txt");
+    let h_map = parse(input);
+
+    let p1 = part_one(&h_map);
+    println!("Part One: {p1}");
 }
 
 #[cfg(test)]
